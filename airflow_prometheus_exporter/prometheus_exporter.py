@@ -386,7 +386,7 @@ class MetricsCollector(object):
         )
         for task in get_task_duration_info():
             task_duration_value = (
-                task.end_date - task.execution_date  # + task.schedule_interval
+                task.end_date - task.start_date
             ).total_seconds()
             task_duration.add_metric(
                 [task.task_id, task.dag_id, str(task.execution_date)],
