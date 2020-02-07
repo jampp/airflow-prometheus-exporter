@@ -9,6 +9,7 @@ from airflow.plugins_manager import AirflowPlugin
 from airflow.settings import RBAC, Session
 from airflow.utils.state import State
 from airflow.utils.log.logging_mixin import LoggingMixin
+from datetime import timedelta
 from flask import Response
 from flask_admin import BaseView, expose
 from prometheus_client import generate_latest, REGISTRY
@@ -44,6 +45,7 @@ def get_dag_state_info():
                 func.count(DagRun.state).label("count"),
             )
             .group_by(DagRun.dag_id, DagRun.state)
+            .filter(DagRun.state.isnot(None))
             .subquery()
         )
         return (
@@ -75,6 +77,7 @@ def get_dag_duration_info():
                 DagModel.is_active == True,  # noqa
                 DagModel.is_paused == False,
                 DagRun.state == State.SUCCESS,
+                DagRun.start_date.isnot(None),
                 DagRun.end_date.isnot(None),
             )
             .group_by(DagRun.dag_id)
@@ -111,6 +114,8 @@ def get_dag_duration_info():
                 dag_start_dt_query.c.dag_id,
                 dag_start_dt_query.c.start_date,
                 DagRun.end_date,
+                DagRun.execution_date,
+                DagModel.schedule_interval,
             )
             .join(
                 DagRun,
@@ -120,8 +125,14 @@ def get_dag_duration_info():
                     == dag_start_dt_query.c.execution_date,
                 ),
             )
+           .join(
+                DagModel,
+                DagModel.dag_id == dag_start_dt_query.c.dag_id,
+                isouter=True,
+            )
             .all()
         )
+
 
 
 ######################
@@ -141,6 +152,9 @@ def get_task_state_info():
             )
             .group_by(
                 TaskInstance.dag_id, TaskInstance.task_id, TaskInstance.state
+            )
+            .filter(
+                TaskInstance.state.isnot(None),
             )
             .subquery()
         )
@@ -372,10 +386,10 @@ class MetricsCollector(object):
         )
         for task in get_task_duration_info():
             task_duration_value = (
-                task.end_date - task.start_date
+                task.end_date - task.execution_date  # + task.schedule_interval
             ).total_seconds()
             task_duration.add_metric(
-                [task.task_id, task.dag_id, str(task.execution_date.date())],
+                [task.task_id, task.dag_id, str(task.execution_date)],
                 task_duration_value,
             )
         yield task_duration
@@ -405,13 +419,15 @@ class MetricsCollector(object):
         dag_duration = GaugeMetricFamily(
             "airflow_dag_run_duration",
             "Duration of successful dag_runs in seconds",
-            labels=["dag_id"],
+            labels=["dag_id", "execution_date"],
         )
         for dag in get_dag_duration_info():
+            if dag.schedule_interval is None:
+                dag.schedule_interval = timedelta(0)
             dag_duration_value = (
-                dag.end_date - dag.start_date
+                dag.end_date - dag.execution_date - dag.schedule_interval
             ).total_seconds()
-            dag_duration.add_metric([dag.dag_id], dag_duration_value)
+            dag_duration.add_metric([dag.dag_id, str(dag.execution_date)], dag_duration_value)
         yield dag_duration
 
         # Scheduler Metrics
@@ -478,15 +494,11 @@ REGISTRY.register(MetricsCollector())
 
 if RBAC:
     from flask_appbuilder import BaseView as FABBaseView, expose as FABexpose
-
-
     class RBACMetrics(FABBaseView):
         route_base = "/admin/metrics/"
-
         @FABexpose('/')
         def list(self):
             return Response(generate_latest(), mimetype='text')
-
     # Metrics View for Flask app builder used in airflow with rbac enabled
     RBACmetricsView = {
         "view": RBACMetrics(),
@@ -500,7 +512,6 @@ else:
         @expose("/")
         def index(self):
             return Response(generate_latest(), mimetype="text/plain")
-
     ADMIN_VIEW = [Metrics(category="Prometheus exporter", name="Metrics")]
     RBAC_VIEW = []
 
