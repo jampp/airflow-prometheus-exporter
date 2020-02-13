@@ -114,8 +114,6 @@ def get_dag_duration_info():
                 dag_start_dt_query.c.dag_id,
                 dag_start_dt_query.c.start_date,
                 DagRun.end_date,
-                DagRun.execution_date,
-                DagModel.schedule_interval,
             )
             .join(
                 DagRun,
@@ -124,11 +122,6 @@ def get_dag_duration_info():
                     DagRun.execution_date
                     == dag_start_dt_query.c.execution_date,
                 ),
-            )
-           .join(
-                DagModel,
-                DagModel.dag_id == dag_start_dt_query.c.dag_id,
-                isouter=True,
             )
             .all()
         )
@@ -389,7 +382,7 @@ class MetricsCollector(object):
                 task.end_date - task.start_date
             ).total_seconds()
             task_duration.add_metric(
-                [task.task_id, task.dag_id, str(task.execution_date)],
+                [task.task_id, task.dag_id, task.execution_date.strftime("%Y-%m-%d-%H-%M")],
                 task_duration_value,
             )
         yield task_duration
@@ -419,15 +412,13 @@ class MetricsCollector(object):
         dag_duration = GaugeMetricFamily(
             "airflow_dag_run_duration",
             "Duration of successful dag_runs in seconds",
-            labels=["dag_id", "execution_date"],
+            labels=["dag_id"],
         )
         for dag in get_dag_duration_info():
-            if dag.schedule_interval is None:
-                dag.schedule_interval = timedelta(0)
             dag_duration_value = (
-                dag.end_date - dag.execution_date - dag.schedule_interval
+                dag.end_date - dag.start_date
             ).total_seconds()
-            dag_duration.add_metric([dag.dag_id, str(dag.execution_date)], dag_duration_value)
+            dag_duration.add_metric([dag.dag_id], dag_duration_value)
         yield dag_duration
 
         # Scheduler Metrics
