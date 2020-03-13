@@ -450,9 +450,13 @@ class MetricsCollector(object):
             labels=["task_id", "dag_id", "execution_date"],
         )
         for task in get_landing_times():
-            task_duration_value = (
-                task.end_date - date_range(task.execution_date, num=2, delta=task.schedule_interval)[1]
-            ).total_seconds()
+            if task.schedule_interval:
+                task_duration_value = (
+                    task.end_date - date_range(task.execution_date, num=2, delta=task.schedule_interval)[1]
+                ).total_seconds()
+            else:
+                task_duration_value = (task.end_date - task.execution_date).total_seconds()
+
             landing_time.add_metric(
                 [task.task_id, task.dag_id, task.execution_date.strftime("%Y-%m-%d-%H-%M")],
                 task_duration_value,
