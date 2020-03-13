@@ -450,7 +450,7 @@ class MetricsCollector(object):
             labels=["task_id", "dag_id", "execution_date"],
         )
         for task in get_landing_times():
-            if task.schedule_interval:
+            if task.schedule_interval is not None:
                 task_duration_value = (
                     task.end_date - date_range(task.execution_date, num=2, delta=task.schedule_interval)[1]
                 ).total_seconds()
