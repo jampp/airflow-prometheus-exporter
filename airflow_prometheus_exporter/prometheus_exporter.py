@@ -7,7 +7,7 @@ from airflow.configuration import conf
 from airflow.models import DagModel, DagRun, TaskInstance, TaskFail, XCom
 from airflow.plugins_manager import AirflowPlugin
 from airflow.settings import RBAC, Session
-from airflow.utils.dates import date_range
+from airflow.utils.dates import date_range, cron_presets
 from airflow.utils.state import State
 from airflow.utils.log.logging_mixin import LoggingMixin
 from flask import Response
@@ -451,6 +451,8 @@ class MetricsCollector(object):
         )
         for task in get_landing_times():
             if task.schedule_interval is not None:
+                if task.schedule_interval in cron_presets:
+                    task.schedule_interval = cron_presets[task.schedule_interval]
                 task_duration_value = (
                     task.end_date - date_range(task.execution_date, num=2, delta=task.schedule_interval)[1]
                 ).total_seconds()
