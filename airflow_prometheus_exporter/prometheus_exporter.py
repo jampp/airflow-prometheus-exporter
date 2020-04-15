@@ -1,5 +1,6 @@
 """Prometheus exporter for Airflow."""
 import json
+import os
 import pickle
 from contextlib import contextmanager
 
@@ -513,7 +514,12 @@ class MetricsCollector(object):
             labels=["dag_id", "task_id"],
         )
 
-        xcom_config = load_xcom_config()
+        xcom_config = load_xcom_config(
+            os.path.join(
+                conf.get("core", "dags_folder"),
+                "prometheus_xcom_config.yaml"
+            )
+        )
         for tasks in xcom_config.get("xcom_params", []):
             for param in get_xcom_params(tasks["task_id"]):
                 xcom_value = extract_xcom_parameter(param.value)
