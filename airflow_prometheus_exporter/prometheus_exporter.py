@@ -477,17 +477,17 @@ class MetricsCollector(object):
         yield d_state
 
         # Removed for performance, as we ignore this metrics
-        # dag_duration = GaugeMetricFamily(
-        #     "airflow_dag_run_duration",
-        #     "Duration of successful dag_runs in seconds",
-        #     labels=["dag_id"],
-        # )
-        # for dag in get_dag_duration_info():
-        #     dag_duration_value = (
-        #         dag.end_date - dag.start_date
-        #     ).total_seconds()
-        #     dag_duration.add_metric([dag.dag_id], dag_duration_value)
-        # yield dag_duration
+        dag_duration = GaugeMetricFamily(
+            "airflow_dag_run_duration",
+            "Duration of successful dag_runs in seconds",
+            labels=["dag_id"],
+        )
+        for dag in get_dag_duration_info():
+            dag_duration_value = (
+                dag.end_date - dag.start_date
+            ).total_seconds()
+            dag_duration.add_metric([dag.dag_id], dag_duration_value)
+        yield dag_duration
 
         # # Scheduler Metrics
         # dag_scheduler_delay = GaugeMetricFamily(
