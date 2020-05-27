@@ -447,7 +447,7 @@ class MetricsCollector(object):
         landing_time = GaugeMetricFamily(
             "airflow_landing_times",
             "Landing times of each task in seconds",
-            labels=["task_id", "dag_id", "execution_date"],
+            labels=["task_id", "dag_id"],
         )
         for task in get_landing_times():
             if task.schedule_interval is not None:
@@ -460,7 +460,7 @@ class MetricsCollector(object):
                 task_duration_value = (task.end_date - task.execution_date).total_seconds()
 
             landing_time.add_metric(
-                [task.task_id, task.dag_id, task.execution_date.strftime("%Y-%m-%d-%H-%M")],
+                [task.task_id, task.dag_id],
                 task_duration_value,
             )
         yield landing_time
